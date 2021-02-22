@@ -16,7 +16,7 @@ class cstr_model(gym.Env):
     def __init__(self):
         
         self.max_Ca = 0.3
-        self.max_Qchange = 10000
+        self.max_Qchange = 100
         self.rho = 780 #kg/m3    
         self.Cp = 3.25 #kJ/kgK
         self.EaA = 41570 #Kj/kmol
@@ -32,16 +32,18 @@ class cstr_model(gym.Env):
         self.T_ss = 300
         self.Tf = 300
         
-        high = np.array([1.,1.,self.max_Ca],dtype=np.float32)
+        #high = np.array([1.,1.,self.max_Ca],dtype=np.float32)
+        high = np.array([0.3, np.inf, np.inf])
+        low = np.array([0.0, 0.0, 300])
         
         self.action_space = spaces.Box(
-            low = -self.max_Qchange,
+            low = 0.0,
             high= self.max_Qchange, shape=(1,),
             dtype=np.float32
         )
         
         self.observation_space = spaces.Box(
-            low=-high,
+            low= low,
             high=high,
             dtype=np.float32
         )
@@ -64,13 +66,13 @@ class cstr_model(gym.Env):
     def step(self, a):               
         
         if self.t == 0 :
-            self.Q = a
+            self.Q = 4999
         else:
             self.Q = self.Q + a
             
-        self.Q = np.clip(self.Q, -self.max_Qchange, self.max_Qchange)[0]      
+        self.Q = np.clip(self.Q, 0 , 5000)#[0]      
         
-        def cstr(x,t,Q,Tf,Caf):   #self???
+        def cstr(x,t,Q,Tf,Caf):  
             
             Ca, Cb, Temp = self.state             
             
@@ -111,19 +113,20 @@ class cstr_model(gym.Env):
         self.x0[0] = newCa
         self.x0[1] = newCb
         self.x0[2] = newTemp        
-                      
-        # calculate the reward for the state
-        if self.t == (self.max_steps-1):
-            costs = newCb
-        else:
-            costs = 0  #the last concentration in the episode...
+                             
+        costs = newCb
         
         # store the new observation for the state
         self.state = np.array([newCa, newCb, newTemp])
+        
+        #print(newCa, newCb, newTemp, self.Q, a)
+        
+        #aqui estamos guardando todos los datos generados en cada step de una corrida del environment
+        g = open("data.txt", "a+")
+        g.write(str(self.t) + " " + str(costs) +  " " +str(self.Q) + '\n')
                 
         # check if the episode is over and store as "done"
         return self._get_obs(), costs, False, {}
-
         
     def _get_obs(self):
         Ca, Cb, Temp = self.state
@@ -133,7 +136,7 @@ class cstr_model(gym.Env):
 
     def reset(self):
         high = np.array([0.3, 0.0, 300])
-        low = np.array([0.0, 0.0, 0])
+        low = np.array([0.0, 0.0, 300])
         self.state = self.np_random.uniform(low=low, high=high)
         self.last_u = None
         return self._get_obs()
